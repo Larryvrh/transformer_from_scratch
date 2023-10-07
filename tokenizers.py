@@ -29,40 +29,40 @@ def sample_vocab(tokens: Iterable[str], vocab_size: Optional[int] = None,
     return vocab
 
 
-# class CharTokenizer:
-#     def __init__(self, corpus: str, vocab_size: Optional[int] = None, vocab_coverage: Optional[float] = None,
-#                  reserved_vocab: Optional[List[str]] = None, unk_literal: str = '<unk>'):
-#         if reserved_vocab is not None:
-#             assert len(reserved_vocab) == len(set(reserved_vocab)), 'no duplicate is allowed in reserved vocab'
-#             assert unk_literal not in reserved_vocab, f'unk literal "{unk_literal}" cannot be in reserved vocab'
-#         else:
-#             reserved_vocab = []
-#         vocab = reserved_vocab.copy() if reserved_vocab is not None else []
-#         vocab += sample_vocab(corpus, vocab_size - len(vocab) - 1, vocab_coverage)
-#         self.s2i = {s: i + 1 for i, s in enumerate(vocab)}
-#         self.s2i[unk_literal] = 0
-#         self.i2s = {i: s for s, i in self.s2i.items()}
-#         self.special_vocab = set(reserved_vocab + [unk_literal])
-#         self.unk_literal = unk_literal
-#
-#     def encode(self, text: str) -> List[int]:
-#         cursor, ids = 0, []
-#         while cursor < len(text):
-#             for s in self.special_vocab:
-#                 if text[cursor:].startswith(s):
-#                     ids.append(self.s2i[s])
-#                     cursor += len(s)
-#                     break
-#             else:
-#                 ids.append(self.s2i.get(text[cursor], self.s2i.get(self.unk_literal)))
-#                 cursor += 1
-#         return ids
-#
-#     def decode(self, ids: List[int]) -> str:
-#         return ''.join(self.i2s[i] for i in ids)
-#
-#     def get_vocab_mapping(self):
-#         return self.s2i
+class CharTokenizer:
+    def __init__(self, corpus: str, vocab_size: Optional[int] = None, vocab_coverage: Optional[float] = None,
+                 reserved_vocab: Optional[List[str]] = None, unk_literal: str = '<unk>'):
+        if reserved_vocab is not None:
+            assert len(reserved_vocab) == len(set(reserved_vocab)), 'no duplicate is allowed in reserved vocab'
+            assert unk_literal not in reserved_vocab, f'unk literal "{unk_literal}" cannot be in reserved vocab'
+        else:
+            reserved_vocab = []
+        vocab = reserved_vocab.copy() if reserved_vocab is not None else []
+        vocab += sample_vocab(corpus, vocab_size - len(vocab) - 1, vocab_coverage)
+        self.s2i = {s: i + 1 for i, s in enumerate(vocab)}
+        self.s2i[unk_literal] = 0
+        self.i2s = {i: s for s, i in self.s2i.items()}
+        self.special_vocab = set(reserved_vocab + [unk_literal])
+        self.unk_literal = unk_literal
+
+    def encode(self, text: str) -> List[int]:
+        cursor, ids = 0, []
+        while cursor < len(text):
+            for s in self.special_vocab:
+                if text[cursor:].startswith(s):
+                    ids.append(self.s2i[s])
+                    cursor += len(s)
+                    break
+            else:
+                ids.append(self.s2i.get(text[cursor], self.s2i.get(self.unk_literal)))
+                cursor += 1
+        return ids
+
+    def decode(self, ids: List[int]) -> str:
+        return ''.join(self.i2s[i] for i in ids)
+
+    def get_vocab_mapping(self):
+        return self.s2i
 
 
 class WordTokenizer:
