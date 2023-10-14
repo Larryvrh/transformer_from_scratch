@@ -1,5 +1,8 @@
+import time
 from typing import *
 import re
+import json
+import numpy as np
 
 
 def sample_vocab(tokens: Iterable[str], vocab_size: Optional[int] = None,
@@ -101,3 +104,78 @@ class WordTokenizer:
     def eval_vocab_coverage(self, corpus: str):
         encoded = self.encode(corpus)
         return 1 - (len([i for i in encoded if i == 0]) / len(encoded))
+
+
+class TRIETokenizer:
+    @staticmethod
+    def split_bytes(data: bytes):
+        return [b'%c' % i for i in data]
+
+    def __init__(self, vocab_file: str):
+        self.nodes = [[b'', -1, -1, {}, 0]]  # node value, parent index, token id, children, child_max_len
+        with open(vocab_file, 'r') as file:
+            vocabs = json.load(file)
+        vocabs.sort(key=lambda i: len(i['bytes']))
+        for entry in vocabs:
+            self.add_vocab(bytes(entry['bytes']), entry['id'])
+
+        self.id_to_bytes = {i['id']: i['bytes'] for i in vocabs}
+
+    def add_vocab(self, vocab_bytes: bytes, vocab_id: int):
+        full_vocab_bytes = vocab_bytes
+        cur_node, cur_node_idx = self.nodes[0], 0
+        while len(vocab_bytes) > 0:
+            max_match = 0
+            for i in range(1, cur_node[4] + 1):
+                if vocab_bytes[:i] in cur_node[3]:
+                    max_match = i
+            if max_match > 0:
+                cur_node_idx = cur_node[3][vocab_bytes[:max_match]]
+                cur_node = self.nodes[cur_node_idx]
+                vocab_bytes = vocab_bytes[max_match:]
+            else:
+                child_idx = len(self.nodes)
+                self.nodes.append([full_vocab_bytes, cur_node_idx, vocab_id, {}, 0])
+                cur_node[3][vocab_bytes] = child_idx
+                cur_node[4] = max(cur_node[4], len(vocab_bytes))
+                break
+
+    def attempt_match(self, match_bytes: bytes):
+        start_length = len(match_bytes)
+
+        cur_node = self.nodes[0]
+        while cur_node is not None:
+            match_length, max_length = 0, min(cur_node[4], len(match_bytes))
+            for i in range(1, max_length + 1):
+                if match_bytes[:i] in cur_node[3]:
+                    match_length = i
+            if match_length == 0:
+                return start_length - len(match_bytes), cur_node[2]
+            else:
+                cur_node = self.nodes[cur_node[3][match_bytes[:match_length]]]
+                match_bytes = match_bytes[match_length:]
+        return -1, -1
+
+    def encode(self, text: str):
+        text_bytes = text.encode('utf-8')
+        tokens, length = [], 0
+        while length < len(text_bytes):
+            offset, token_id = self.attempt_match(text_bytes[length:])
+            assert offset >= 0
+            tokens.append(token_id)
+            length += offset
+        return tokens
+
+    def decode(self, token_ids: List[int]):
+        return bytes([t for i in token_ids for t in self.id_to_bytes[i]]).decode('utf-8')
+
+
+tokenizer = TRIETokenizer('llama_vocab_pruned.json')
+print(len(tokenizer.nodes))
+with open('corpus/TinyStoriesV2-GPT4-valid.txt', 'r') as file:
+    s = time.time()
+    text = file.read()[:100000]
+    encoded = tokenizer.encode(text)
+    print(len(encoded))
+    e = time.time()
+    print(f'{100000 / (e - s):.2f} cps')
