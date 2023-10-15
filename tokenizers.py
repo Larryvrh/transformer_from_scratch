@@ -224,8 +224,8 @@ class TRIETokenizerFast:
         return bytes([t for i in token_ids for t in self.id_to_bytes[i]]).decode('utf-8')
 
 
-# tokenizer = TRIETokenizerFast('llama_vocab_pruned.json')
-#
+tokenizer = TRIETokenizerFast('llama_vocab_pruned_20480.json')
+
 # with open('corpus/TinyStoriesV2-GPT4-valid.txt', 'r') as file:
 #     text = file.read()[:10240]
 #
@@ -234,5 +234,6 @@ class TRIETokenizerFast:
 # for i in range(1000):
 #     encoded = tokenizer.encode(text)
 #     total_tokens += len(encoded)
+#     print(len(encoded))
 # e = time.time()
 # print(f'{e - s:.3f} secs, {total_tokens / (e - s):.3f} tps')
