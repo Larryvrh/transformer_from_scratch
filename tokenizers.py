@@ -223,6 +223,8 @@ class TRIETokenizerFast:
     def decode(self, token_ids: List[int]):
         return bytes([t for i in token_ids for t in self.id_to_bytes[i]]).decode('utf-8')
 
+    def get_vocab_size(self):
+        return len(self.id_to_bytes)
 
 # if __name__ == '__main__':
 #     tokenizer = TRIETokenizerFast('llama_vocab_pruned_20480.json')
