@@ -227,7 +227,7 @@ class TRIETokenizerFast:
         return len(self.id_to_bytes)
 
 # if __name__ == '__main__':
-#     tokenizer = TRIETokenizerFast('llama_vocab_pruned_20480.json')
+#     tokenizer = TRIETokenizerFast('llama_vocab_pruned_20k.json')
 #     with open('corpus/TinyStoriesV2-GPT4-valid.txt', 'r') as file:
 #         text = file.read()[:10240]
 #
