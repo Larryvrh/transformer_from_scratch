@@ -221,7 +221,7 @@ class TRIETokenizerFast:
         return trie_encode_jit(self.nodesJit, text.encode('utf-8'))
 
     def decode(self, token_ids: List[int]):
-        return bytes([t for i in token_ids for t in self.id_to_bytes[i]]).decode('utf-8')
+        return bytes([t for i in token_ids for t in self.id_to_bytes[i]]).decode('utf-8', errors='replace')
 
     def get_vocab_size(self):
         return len(self.id_to_bytes)
