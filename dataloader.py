@@ -3,6 +3,7 @@ from torch.utils.data import IterableDataset
 from typing import *
 import struct
 from functools import reduce
+import random
 
 
 class DatasetWriter:
@@ -73,6 +74,9 @@ class DatasetReaderIter:
         entry_count = struct.unpack('Q', self.file_handle.read(8))[0]
         return fields, entry_count
 
+    def has_next(self):
+        return self.cur_entry_index < self.entry_count
+
     def __next__(self):
         if self.cur_entry_index == self.entry_count:
             raise StopIteration()
@@ -106,3 +110,34 @@ class DatasetReader(IterableDataset):
 
     def __iter__(self):
         return DatasetReaderIter(self.map_file)
+
+
+class MultiDatasetsReaderIter:
+    def __init__(self, datasets: List[Tuple[DatasetReader, float]]):
+        self.iters = [(iter(d), c) for d, c in datasets]
+
+    def __next__(self):
+        if len(self.iters) == 0:
+            raise StopIteration()
+        selected = random.choices(self.iters, weights=[c for i, c in self.iters], k=1)[0]
+        entry = next(selected[0])
+        if not selected[0].has_next():
+            self.iters.remove(selected)
+        return entry
+
+    def __iter__(self):
+        return self
+
+
+class MultiDatasetsReader:
+    def __init__(self, datasets: Union[List[DatasetReader], List[Tuple[DatasetReader, float]]]):
+        if isinstance(datasets[0], Tuple):
+            self.datasets = datasets
+        else:
+            self.datasets = [(d, d.entry_count) for d in datasets]
+
+    def __len__(self):
+        return sum(d.entry_count for d, c in self.datasets)
+
+    def __iter__(self):
+        return MultiDatasetsReaderIter(self.datasets)
