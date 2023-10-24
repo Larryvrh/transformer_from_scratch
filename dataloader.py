@@ -4,6 +4,17 @@ from typing import *
 import struct
 from functools import reduce
 import random
+import json
+
+
+def json_load(path):
+    with open(path, 'r') as file:
+        return json.load(file)
+
+
+def json_dump(obj, path):
+    with open(path, 'w') as file:
+        json.dump(obj, file, ensure_ascii=False, indent=2)
 
 
 class DatasetWriter:
@@ -95,6 +106,15 @@ class DatasetReaderIter:
     def __iter__(self):
         return self
 
+    def get_state(self):
+        return {'file_cursor': self.file_handle.tell(), 'fields': [(f[0], str(f[1])) for f in self.fields],
+                'entry_count': self.entry_count, 'cur_entry_index': self.cur_entry_index}
+
+    def set_state(self, state: Dict[str, Any]):
+        assert dict([(f[0], str(f[1])) for f in self.fields]) == dict(state['fields']) and self.entry_count == state['entry_count']
+        self.file_handle.seek(state['file_cursor'])
+        self.cur_entry_index = state['cur_entry_index']
+
     def __del__(self):
         self.file_handle.close()
 
@@ -108,36 +128,74 @@ class DatasetReader(IterableDataset):
     def __len__(self):
         return self.entry_count
 
-    def __iter__(self):
+    def save_iterator(self, iterator: DatasetReaderIter, path: str):
+        state = iterator.get_state()
+        state['map_file'] = self.map_file
+        json_dump(state, path)
+
+    def load_iterator(self, path: str) -> DatasetReaderIter:
+        state = json_load(path)
+        assert state.pop('map_file') == self.map_file
+        iterator = iter(self)
+        iterator.set_state(state)
+        return iterator
+
+    def __iter__(self) -> DatasetReaderIter:
         return DatasetReaderIter(self.map_file)
 
 
 class MultiDatasetsReaderIter:
-    def __init__(self, datasets: List[Tuple[DatasetReader, float]]):
-        self.iters = [(iter(d), c) for d, c in datasets]
+    def __init__(self, datasets: List[Tuple[DatasetReader, float]], seed: Optional[int] = None):
+        self.iters = [(iter(d), w) for d, w in datasets]
+        self.rng = random.Random(seed)
 
     def __next__(self):
         if len(self.iters) == 0:
             raise StopIteration()
-        selected = random.choices(self.iters, weights=[c for i, c in self.iters], k=1)[0]
+        selected = self.rng.choices(self.iters, weights=[c for i, c in self.iters], k=1)[0]
         entry = next(selected[0])
         if not selected[0].has_next():
-            self.iters.remove(selected)
+            self.iters[self.iters.index(selected)] = (selected[0], 0)
         return entry
+
+    def get_state(self):
+        iter_states = [(i.get_state(), w) for i, w in self.iters]
+        rng_state = self.rng.getstate()
+        return {'iter_states': iter_states, 'rng_state': rng_state}
+
+    def set_state(self, state: Dict[str, Any]):
+        for i, (iter_state, weight) in enumerate(state['iter_states']):
+            assert weight == 0 or self.iters[i][1] == weight
+            self.iters[i][0].set_state(iter_state)
+            self.iters[i] = (self.iters[i][0], weight)
+        rng_state = tuple(e if not isinstance(e, list) else tuple(e) for e in state['rng_state'])
+        self.rng.setstate(rng_state)
 
     def __iter__(self):
         return self
 
 
 class MultiDatasetsReader:
-    def __init__(self, datasets: Union[List[DatasetReader], List[Tuple[DatasetReader, float]]]):
+    def __init__(self, datasets: Union[List[DatasetReader], List[Tuple[DatasetReader, float]]], seed: Optional[int] = None):
         if isinstance(datasets[0], Tuple):
             self.datasets = datasets
         else:
             self.datasets = [(d, d.entry_count) for d in datasets]
+        self.seed = seed
 
     def __len__(self):
         return sum(d.entry_count for d, c in self.datasets)
 
-    def __iter__(self):
-        return MultiDatasetsReaderIter(self.datasets)
+    # noinspection PyMethodMayBeStatic
+    def save_iterator(self, iterator: MultiDatasetsReaderIter, path: str):
+        state = iterator.get_state()
+        json_dump(state, path)
+
+    def load_iterator(self, path: str) -> MultiDatasetsReaderIter:
+        state = json_load(path)
+        iterator = iter(self)
+        iterator.set_state(state)
+        return iterator
+
+    def __iter__(self) -> MultiDatasetsReaderIter:
+        return MultiDatasetsReaderIter(self.datasets, self.seed)
