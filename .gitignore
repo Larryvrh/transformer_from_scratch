@@ -2,4 +2,5 @@
 .ipynb_checkpoints
 corpus
 datasets
+checkpoints
 *.pt
