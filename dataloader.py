@@ -62,7 +62,38 @@ class DatasetWriter:
         self.file_handle.close()
 
 
-class DatasetReaderIter:
+class DatasetIter:
+    def __iter__(self):
+        raise NotImplementedError()
+
+    def __next__(self):
+        raise NotImplementedError()
+
+    def has_next(self) -> bool:
+        raise NotImplementedError()
+
+    def get_state(self) -> Dict[str, Any]:
+        raise NotImplementedError()
+
+    def set_state(self, state: Dict[str, Any]):
+        raise NotImplementedError()
+
+
+class DatasetReader(IterableDataset):
+    def __len__(self):
+        raise NotImplementedError()
+
+    def __iter__(self):
+        raise NotImplementedError()
+
+    def save_iterator(self, iterator: DatasetIter, path: str):
+        raise NotImplementedError()
+
+    def load_iterator(self, path: str) -> DatasetIter:
+        raise NotImplementedError()
+
+
+class SingleDatasetReaderIter(DatasetIter):
     def __init__(self, map_file: str):
         self.file_handle = open(map_file, 'rb')
         self.fields, self.entry_count = self.__read_header()
@@ -119,38 +150,41 @@ class DatasetReaderIter:
         self.file_handle.close()
 
 
-class DatasetReader(IterableDataset):
+class SingleDatasetReader(DatasetReader):
     def __init__(self, map_file: str):
         self.map_file = map_file
-        temp_iter = DatasetReaderIter(map_file)
+        temp_iter = SingleDatasetReaderIter(map_file)
         self.entry_count = temp_iter.entry_count
 
     def __len__(self):
         return self.entry_count
 
-    def save_iterator(self, iterator: DatasetReaderIter, path: str):
+    def save_iterator(self, iterator: SingleDatasetReaderIter, path: str):
         state = iterator.get_state()
         state['map_file'] = self.map_file
         json_dump(state, path)
 
-    def load_iterator(self, path: str) -> DatasetReaderIter:
+    def load_iterator(self, path: str) -> SingleDatasetReaderIter:
         state = json_load(path)
         assert state.pop('map_file') == self.map_file
         iterator = iter(self)
         iterator.set_state(state)
         return iterator
 
-    def __iter__(self) -> DatasetReaderIter:
-        return DatasetReaderIter(self.map_file)
+    def __iter__(self) -> SingleDatasetReaderIter:
+        return SingleDatasetReaderIter(self.map_file)
 
 
-class MultiDatasetsReaderIter:
-    def __init__(self, datasets: List[Tuple[DatasetReader, float]], seed: Optional[int] = None):
+class MultiDatasetsReaderIter(DatasetIter):
+    def __init__(self, datasets: List[Tuple[SingleDatasetReader, float]], seed: Optional[int] = None):
         self.iters = [(iter(d), w) for d, w in datasets]
         self.rng = random.Random(seed)
 
+    def has_next(self) -> bool:
+        return any(w > 0 for d, w in self.iters)
+
     def __next__(self):
-        if len(self.iters) == 0:
+        if all(w == 0 for d, w in self.iters):
             raise StopIteration()
         selected = self.rng.choices(self.iters, weights=[c for i, c in self.iters], k=1)[0]
         entry = next(selected[0])
@@ -175,8 +209,8 @@ class MultiDatasetsReaderIter:
         return self
 
 
-class MultiDatasetsReader:
-    def __init__(self, datasets: Union[List[DatasetReader], List[Tuple[DatasetReader, float]]], seed: Optional[int] = None):
+class MultiDatasetsReader(DatasetReader):
+    def __init__(self, datasets: Union[List[SingleDatasetReader], List[Tuple[SingleDatasetReader, float]]], seed: Optional[int] = None):
         if isinstance(datasets[0], Tuple):
             self.datasets = datasets
         else:
