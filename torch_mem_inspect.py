@@ -1,4 +1,6 @@
 import torch
+import os
+import re
 
 
 def is_torch_sub_class(obj):
@@ -8,6 +10,7 @@ def is_torch_sub_class(obj):
     return False
 
 
+# noinspection PyBroadException
 def find_tensors(obj, obj_path, results, depth, max_depth=5):
     if depth > max_depth or obj == results:
         return
@@ -28,6 +31,7 @@ def find_tensors(obj, obj_path, results, depth, max_depth=5):
                 pass
 
 
+# noinspection PyBroadException
 def is_tensor(obj):
     try:
         return isinstance(obj, torch.Tensor) or (hasattr(obj, "data") and isinstance(obj.data, torch.Tensor))
@@ -90,12 +94,9 @@ def output_tensor_summary(deep_traverse=False):
     print(f"Total {trivial_memory_usage / unit :.2f} {unit_name} is occupied by trivial tensors(<=1{unit_name}).")
 
 
-class TestModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.linear = torch.nn.Linear(256, 256)
-
-
-m = TestModule().cuda()
-
-output_tensor_summary(deep_traverse=True)
+def nvidia_smi_stat():
+    expr = re.compile(r'\|\s*(\d)+\s*.+?\s*\|.+?\|.+?\|\n\|\s*(\d+)%\s*(\d+).+?(\d+)W / (\d+)W \|\s*(\d+)MiB\s/\s*(\d+)MiB\s*\|\s*(\d+)%.+?\|')
+    stat = os.popen('nvidia-smi').read()
+    return {i: {'id': int(v[0]), 'fan': int(v[1]), 'temperature': int(v[2]), 'power': int(v[3]), 'max_power': int(v[4]),
+                'mem_usage': int(v[5]), 'mem_capacity': int(v[6]), 'util': int(v[7])}
+            for i, v in enumerate(expr.findall(stat))}
