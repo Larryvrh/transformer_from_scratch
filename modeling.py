@@ -197,7 +197,7 @@ class ToyTransformer(nn.Module):
         seq_length = seq.shape[1]
         if kv_cache is None and global_config['attn_backend'] == AttentionBackend.FlashAttentionTriton and seq_length % 128 != 0:
             if attn_mask is None:  # forcibly enable attn_mask due to padding
-                attn_mask = torch.ones(seq.shape)
+                attn_mask = torch.ones(seq.shape, device=self.device)
             pad_length = (ceil(seq_length / 128) * 128) - seq_length
             seq = nn.functional.pad(seq, (0, pad_length))
             attn_mask = nn.functional.pad(attn_mask, (0, pad_length))
@@ -211,9 +211,9 @@ class ToyTransformer(nn.Module):
         elif attn_mask is not None:
             attn_masked_bias = expand_attn_mask(attn_mask)
         elif attn_mask is None and kv_cache is None:
-            attn_masked_bias = expand_attn_mask(torch.ones(seq.shape))
+            attn_masked_bias = expand_attn_mask(torch.ones(seq.shape, device=self.device))
         elif kv_cache is not None:
-            attn_masked_bias = torch.ones((1, seq.shape[1], seq.shape[1]), dtype=torch.bool)
+            attn_masked_bias = torch.ones((1, seq.shape[1], seq.shape[1]), dtype=torch.bool, device=self.device)
         else:
             attn_masked_bias = None
 
