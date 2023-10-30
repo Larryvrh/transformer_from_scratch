@@ -174,6 +174,9 @@ class SingleDatasetReader(DatasetReader):
     def __iter__(self) -> SingleDatasetReaderIter:
         return SingleDatasetReaderIter(self.map_file)
 
+    def __str__(self):
+        return f'SingleDatasetReader(map_file={self.map_file}, entry_count={self.entry_count})'
+
 
 class MultiDatasetsReaderIter(DatasetIter):
     def __init__(self, datasets: List[Tuple[SingleDatasetReader, float]], seed: Optional[int] = None):
@@ -233,3 +236,7 @@ class MultiDatasetsReader(DatasetReader):
 
     def __iter__(self) -> MultiDatasetsReaderIter:
         return MultiDatasetsReaderIter(self.datasets, self.seed)
+
+    def __str__(self):
+        details = '\n'.join([f'    Dataset={d}, Weight={w}' for d, w in self.datasets])
+        return f'MultiDatasetsReader(\n{details}\n)'
