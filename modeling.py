@@ -94,6 +94,18 @@ def apply_rope_fast(x, rope_cache, positions: Optional[torch.Tensor] = None) -> 
     return applied_x.type_as(x)
 
 
+# RMSNorm implementation following https://arxiv.org/pdf/1910.07467.pdf
+class RMSNorm(nn.Module):
+    def __init__(self, hidden_size, dtype, eps=1e-6):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size, dtype=dtype))
+        self.eps = eps
+
+    def forward(self, x: torch.Tensor):
+        x_ = x * torch.rsqrt(x.pow(2).mean(-1, keepdim=True) + self.eps)
+        return self.weight * x_
+
+
 class AttentionHead(nn.Module):
     def __init__(self, config: TransformerConfig):
         super().__init__()
